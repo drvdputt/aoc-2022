@@ -72,3 +72,35 @@
 
       ;; let's just do everything. Seems the right thing to do if there's much branching.
       t))
+
+;; alternate method, where we don't need to now the distance. We only want to flag the points in
+;; terms of being reachable from the given starting point. Will fill an array of length
+;; num-nodes with 1 and -1, with 1 at position j meaning that a node j was reachable from node
+;; i.
+(defun dijkstra/visitor (num-nodes
+                         ;; starting node
+                         i
+                         ;; function that returns the neighboring indices, given an index
+                         neighbor-indices-f)
+  (let ((visited (make-array num-nodes
+                             :element-type 'integer
+                             :initial-element -1)))
+    (dijkstra/visitor-recurse visited i neighbor-indices-f)
+    visited))
+
+(defun dijkstra/visitor-recurse (visit-vector
+                                 i
+                                 neighbor-indices-f)
+  ;; register that we visited the current node
+  (setf (elt visit-vector i) 1)
+  (let ((neighbors (funcall neighbor-indices-f i)))
+    ;; then visit the neighbors that still need a visit (recurse)
+    (loop for j in neighbors
+          if (= -1 (elt visit-vector j))
+            do (dijkstra/visitor-recurse visit-vector j neighbor-indices-f))))
+
+    
+                         
+                         
+                         
+                         
