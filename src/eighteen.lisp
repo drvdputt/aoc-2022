@@ -53,6 +53,8 @@
                    (and (> k 0) (> (aref cube i j (1- k)) 0))
                    (and (< k (1- (array-dimension cube 2))) (> (aref cube i j (1+ k)) 0))))))
     ;; (print num-neighbors)
+    ;; (print (length (cube/empty-neighbors cube i j k)))
+    ;; (print (cube/empty-neighbors cube i j k))
     num-neighbors))
 
 ;; (defun cube/
@@ -105,13 +107,52 @@
 (defun do-puzzle (lines)
   (cube/surface-area (cube/init lines)))
 
-;; (defun do-part2 (lines)
-;;   (let* ((cube (cube/init lines))
-;;          (ds (array-dimensions cube))
-;;          (matrix (dijkstra/distance-matrix-init (apply #'* ds))))
-;;     (dijkstra/recurse
-;;      matrix
-;;      (flat-index 0 0 0 ds)
-;;      (lambda (flat-index) 
-     
-     
+(defun do-part2 (lines)
+  (let* ((cube (cube/init lines))
+         (ds (array-dimensions cube))
+         (num-nodes (apply (function *) ds))
+         (visited
+           (dijkstra/visitor
+            num-nodes
+            (flat-index 0 0 0 ds)
+            ;; flat index wrapper around neighbor function
+            (lambda (flat-index)
+              (let* ((ijk (ijk-index flat-index ds))
+                     (neighbors (cube/empty-neighbors cube (first ijk) (second ijk) (third ijk))))
+                ;; (print "exploring")
+                ;; (print neighbors)
+                (mapcar (lambda (ijk) (flat-index (first ijk) (second ijk) (third ijk) ds))
+                        neighbors))))))
+    ;; then, for every visited cell, sum the number of neighbors (not working? why? is this not
+    ;; equivalent?)
+    (loop for v across visited
+          for flat-index from 0
+          for ijk = (ijk-index flat-index ds)
+
+          ;; if not visited
+          if (= v -1)
+            count t into novisit
+            and do (print (list (first ijk) (second ijk) (third ijk)
+                                (aref cube (first ijk) (second ijk) (third ijk))))
+
+          ;; if visited
+          if (= v 1)
+            sum (cube/num-neighbors cube (first ijk) (second ijk) (third ijk))
+              into surface
+          finally (print (list :novisit novisit :surface surface)))
+
+    ;; alternate method: fill the holes (set cube value to one for every unvisited node), and
+    ;; then run the old calculation
+    (loop for v across visited
+          for flat-index from 0
+          for ijk = (ijk-index flat-index ds)
+          ;; if not visited, fill the hole
+          if (= v -1)
+             do (setf (aref cube (first ijk) (second ijk) (third ijk)) 1))
+    (cube/surface-area cube)))
+
+
+                  
+
+;; we get novisit = 14, which is correct for the example. Only the surface area calculation
+;; still has something wrong.
