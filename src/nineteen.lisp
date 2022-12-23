@@ -14,7 +14,8 @@
    certain depth.
 
    STATE-SCORE-F should return the score of a STATE. Will be called once END-PREDICATE-F returns
-   t, to evaluate the score of a branch.
+   t, and we start going back up in the recursion. Branches will be chosen to maximize the
+   score. Best state is passed all the way upward.
 
    NEXT-STATES-F should return a list of STATE objects, each one typically has a different type
    of evolution step applied to them. Try to make this function as restrictive as possible, so
@@ -23,17 +24,26 @@
   (if (funcall end-p cur-state)
       ;; If the current state is past the end, just return the score. This breaks off the
       ;; recursion.
-      (funcall state-score-f cur-state)
+      ;; (funcall state-score-f cur-state)
+      cur-state
       ;; Else, get the possible next states, and recursively continue the state evolution. Once
       ;; the end of the branch returns the score, it will be passed up and returned here. The
       ;; maximum score of all t he sub-branches is passed up.
       (let ((next-states (funcall next-states-f cur-state)))
         (if next-states
             (loop for next-state in next-states
-                  maximize (dfss/recurse next-state
-                                         end-p
-                                         state-score-f
-                                         next-states-f))
+                  with best-state = nil
+                  with best-score = nil
+                  do (let* ((return-state (dfss/recurse next-state
+                                                        end-p
+                                                        state-score-f
+                                                        next-states-f))
+                            (return-score (funcall state-score-f return-state)))
+                       (when (or (not best-score) (> return-score best-score))
+                         (setq best-score return-score
+                               best-state return-state)))
+                  finally (return best-state))
+            
             ;; if no states are returned, end the calculation
             (funcall state-score-f cur-state)))))
 
@@ -102,7 +112,7 @@
     (when buy-geobot
       (decf (state-ore ns) (getf bp :geobot-ore))
       (decf (state-obsidian ns) (getf bp :geobot-obs))
-      (incf (state-obsbots ns)))
+      (incf (state-geobots ns)))
     ns))
   
 
@@ -144,23 +154,28 @@
 
       ;; if none of the above shortcuts were triggered, try different options. 
       (t
-       ;; If we have all 4 purchase options, ALWAYS BUY SOMETHING. In other words, only add WAIT
-       ;; when at least one purchase option is missing, since waiting MIGHT be a better option
-       ;; in those cases.
-       (when (notevery #'identity (list can-buy-orebot can-buy-claybot can-buy-obsbot can-buy-geobot))
-         (push (state/advance s bp) next-list))
-       ;; Always add available purchase options (except when not possible or not needed, as
-       ;; calculated in the let block above
-       (when can-buy-orebot
-         (push (state/advance s bp :buy-orebot t) next-list))
-       (when can-buy-claybot
-         (push (state/advance s bp :buy-claybot t) next-list))
-       (when can-buy-obsbot
-         (push (state/advance s bp :buy-obsbot t) next-list))
-       (when can-buy-geobot
-         (push (state/advance s bp :buy-geobot t) next-list))))
-    (print (list can-buy-orebot can-buy-claybot can-buy-obsbot can-buy-geobot))
-    (print next-list)
+       (let ((waiting-useless
+               (or
+                ;; no clay income -> always buy if have enough ore for both
+                (and (= 0 (state-claybots s)) can-buy-orebot can-buy-claybot)
+                ;; no obsidian income -> always buy if have enough resources for all three
+                (and (= 0 (state-obsbots s)) can-buy-orebot can-buy-claybot can-buy-obsbot))))
+       
+         ;; Add an option to WAIT, unless we flagged waiting as useless
+         (unless waiting-useless
+           (push (state/advance s bp) next-list))
+         ;; Add available purchase options (except when not possible or not needed, as
+         ;; calculated in the let block above
+         (when can-buy-orebot
+           (push (state/advance s bp :buy-orebot t) next-list))
+         (when can-buy-claybot
+           (push (state/advance s bp :buy-claybot t) next-list))
+         (when can-buy-obsbot
+           (push (state/advance s bp :buy-obsbot t) next-list))
+         (when can-buy-geobot
+           (push (state/advance s bp :buy-geobot t) next-list)))))
+    ;; (print (list can-buy-orebot can-buy-claybot can-buy-obsbot can-buy-geobot))
+    ;; (print next-list)
     next-list))
 
 (defun do-puzzle (time)
