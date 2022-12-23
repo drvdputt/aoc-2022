@@ -45,7 +45,7 @@
                          (setq best-score return-score
                                best-state return-state)))
                   finally (return best-state))
-            
+
             ;; if no states are returned, end the calculation
             (funcall state-score-f cur-state)))))
 
@@ -125,7 +125,7 @@
       (decf (state-obsidian ns) (getf bp :geobot-obs))
       (incf (state-geobots ns)))
     ns))
-  
+
 
 ;; we can make this dumb or smart. Will drastically affect runtime.
 (defun state/next-f (s bp)
@@ -164,7 +164,7 @@
       ((not (or can-buy-orebot can-buy-claybot can-buy-obsbot can-buy-geobot))
        (push (state/advance s bp) next-list))
 
-      ;; if none of the above shortcuts were triggered, try different options. 
+      ;; if none of the above shortcuts were triggered, try different options.
       (t
        (let ((waiting-useless
                (or
@@ -172,10 +172,19 @@
                 (and (= 0 (state-claybots s)) can-buy-orebot can-buy-claybot)
                 ;; no obsidian income -> always buy if have enough resources for all three
                 (and (= 0 (state-obsbots s)) can-buy-orebot can-buy-claybot can-buy-obsbot))))
-       
+
          ;; Add an option to WAIT, unless we flagged waiting as useless
          (unless waiting-useless
-           (push (state/advance s bp) next-list))
+           nil)
+         ;; (push (state/advance s bp) next-list))
+         ;; ^^ let's see what happens if we never wait
+         ;; >> result: MUCH faster, but doesn't always work (sometimes, all money is spent on
+         ;; >> clay bots, instead of waiting until we have enough ore for an obsidian bot)
+         ;; mainly a problem when clay bots are cheaper than obs bots, and obs bots require a
+         ;; lot of clay
+
+         ;; effortlessly solves the 32 case for example blueprint 2 though!
+
          ;; Add available purchase options (except when not possible or not needed, as
          ;; calculated in the let block above
          (when can-buy-orebot
@@ -224,4 +233,12 @@
         do (print final-state)
         do (print (list id "quality" quality))
         sum quality))
-           
+
+;; this requires a hack to never wait. Works, because for the first three, the obsbot and
+;; claybot are equally expensive
+(defun do-part2 ()
+  (let ((first-three-geode (loop for bp in (subseq bps 0 3)
+                                 for final-state = (do-puzzle bp 32)
+                                 do (print final-state)
+                                 collect (state-geode final-state))))
+        (apply #'* first-three-geode)))
