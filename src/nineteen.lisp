@@ -147,10 +147,11 @@
     ;; Now, we can invent all kinds of logic.
     (cond
       ;; First optimization: if we have enough income to buy a geobot at every turn, always buy
-      ;; a geobot, and never wait.
-      ((and can-buy-geobot
-            (>= (state-orebots s) (getf bp :geobot-ore))
-            (>= (state-obsbots s) (getf bp :geobot-obs)))
+      ;; a geobot, and never wait. Possible simplification of this: always buy geobot if
+      ;; available. Reduced runtime from 100 to 38 seconds!
+      ((and can-buy-geobot)
+            ;; (>= (state-orebots s) (getf bp :geobot-ore))
+            ;; (>= (state-obsbots s) (getf bp :geobot-obs)))
        (push (state/advance s bp :buy-geobot t) next-list))
 
       ;; Another optimization idea:
@@ -197,4 +198,30 @@
                   #'state/score-f
                   ;; blueprint is chosen here by pickling next-f
                   (lambda (s) (state/next-f s blueprint)))))
-                  
+
+(load "string.lisp")
+(load "file.lisp")
+(defparameter lines (read-default-input "nineteen"))
+(defun bp/init (line)
+  (let ((numbers (find-all-int line)))
+    (list :orebot-ore (nth 1 numbers)
+          :claybot-ore (nth 2 numbers)
+          :obsbot-ore (nth 3 numbers)
+          :obsbot-clay (nth 4 numbers)
+          :geobot-ore (nth 5 numbers)
+          :geobot-obs (nth 6 numbers)
+          ;; utility, so we don't have to take max later
+          :max-ore (max (nth 1 numbers) (nth 2 numbers) (nth 3 numbers) (nth 5 numbers)))))
+
+(defparameter bps (mapcar #'bp/init lines))
+
+(defun do-all-bps (depth)
+  (loop for bp in bps
+        for id from 1
+        for final-state = (do-puzzle bp depth)
+        for quality = (* id (state-geode final-state))
+        do (print id)
+        do (print final-state)
+        do (print (list id "quality" quality))
+        sum quality))
+           
