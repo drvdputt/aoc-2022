@@ -1,3 +1,5 @@
+(declaim (optimize (speed 3) (debug 0) (safety 0)))
+
 ;; try to write a generic state search thing
 
 (defun dfss/recurse (cur-state
@@ -59,25 +61,34 @@
                          :geobot-ore 2
                          :geobot-obs 7
                          ;; utility, so we don't have to take max later
-                         :max-ore 4))
+                          :max-ore 4))
+
+(defparameter bp2-e (list :orebot-ore 2
+                         :claybot-ore 3
+                         :obsbot-ore 3
+                         :obsbot-clay 8
+                         :geobot-ore 3
+                         :geobot-obs 12
+                         ;; utility, so we don't have to take max later
+                          :max-ore 3))
 
 ;; state. Let's learn something new and use defstruct. This is a macro that automatically
 ;; defines a bunch of functions, to make something that almost looks object-oriented.
 (defstruct state
-  (time 0)
+  (time 0 :type integer)
   ;; resources
-  (ore 0)
-  (clay 0)
-  (obsidian 0)
-  (geode 0)
+  (ore 0 :type integer)
+  (clay 0 :type integer)
+  (obsidian 0 :type integer)
+  (geode 0 :type integer)
   ;; bots
-  (orebots 1)
-  (claybots 0)
-  (obsbots 0)
-  (geobots 0))
+  (orebots 1 :type integer)
+  (claybots 0 :type integer)
+  (obsbots 0 :type integer)
+  (geobots 0 :type integer))
 
 (defun state/end-p (s)
-  (> (state-time s) maxtime))
+  (>= (state-time s) maxtime))
 
 (defun state/score-f (s)
   (state-geode s))
@@ -178,12 +189,12 @@
     ;; (print next-list)
     next-list))
 
-(defun do-puzzle (time)
+(defun do-puzzle (blueprint time)
   (setq maxtime time)
   (let ((s (make-state)))
     (dfss/recurse s
                   #'state/end-p
                   #'state/score-f
                   ;; blueprint is chosen here by pickling next-f
-                  (lambda (s) (state/next-f s bp1-e)))))
+                  (lambda (s) (state/next-f s blueprint)))))
                   
