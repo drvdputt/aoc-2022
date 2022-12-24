@@ -48,52 +48,55 @@
 
   Shifts then need to happen to remove the position marked as x.
 
+  Detail: for a list of length 7, six skips brings us back to the starting point! It's modulo (n - 1)!
+
+
+
   "
   (let* ((n (length position-table))
          (p-old (aref position-table i))
-         ;; shift = delta + 1 if positive, delta - 1 if negative, 0 if 0
-         (p-new (mod (+ p-old 
-                        (if (> delta 0)
-                            (1+ delta)
-                            (1- delta)))
-                     n)))
+         ;; modulo n - 1! 
+         (p-new (mod (+ p-old delta) (1- n))))
+
+    ;; Special case: if p-new mod n-1 == 0, move to pos n-1 (equivalent because cyclical, but we
+    ;; do it to have the same output as the example)
+    (when (= 0 p-new) (setq p-new (1- n)))
+
     (print (list "p-old" p-old "p-new" p-new))
+
     ;; Do the shifts, except when delta == 0 or pnew == pold 
     (unless (or (= delta 0) (= p-new p-old))
-      ;; carefully think about forward and backward moves
-      (setf (aref position-table i) p-new)
+      ;; first, make space by doing the shifts
       
-      ;; forward (p-new > p-old)
-      ;; 0 1 2 3 4 5
-      ;;     .-d2>2   delta 2 (index goes up by 3). 2 and 5 now have the same position
-      ;; 0 1 x 3 4 5
-      ;; 5 stays in place, 3 and 4 and 2 (p-new) shift left
-      (when (> p-new p-old)
-        (loop for j from 0 below n
-              for pj across position-table
-              ;; shift left if between p-old and p-new
-              if (and (> pj p-old)
-                      (< pj p-new))
-                do (decf (aref position-table j)))
-        ;; shift i separately, because it temporarily had the same index as the element that was
-        ;; previously at p-new.
-        (decf (aref position-table i)))
+      (if (> p-new p-old)
+          ;; forward (p-new > p-old)
+          ;; 0 1 2 3 4 5
+          ;;          2
+          ;; 0 1 x 3 4 5
+          ;; 5 stays in place, but 3 and 4 need to make space for p-new
+          ;; so > p-old and <= p-new
+          ;; and don't care about i, we overwrite it anyway
+          (loop for j from 0 below n
+                for pj across position-table
+                ;; shift left if between p-old and p-new
+                if (and (> pj p-old)
+                        (<= pj p-new))
+                  do (decf (aref position-table j)))
+          ;; backward (p-new < p-old)
+          ;; 0 1 2 3 4 5
+          ;;    4        
+          ;; 0 1 2 3 x 5
+          ;; 1 stays in place, 2 and 3 and 4 (p-new) shift right
+          ;; so < p-old and >= p-new
+          (loop for j from 0 below n
+                for pj across position-table
+                ;; shift right if between p-new and p-old
+                if (and (>= pj p-new)
+                        (< pj p-old))
+                  do (incf (aref position-table j))))
 
-      ;; backward (p-new < p-old)
-      ;; 0 1 2 3 4 5
-      ;;    4         4 moves by delta -2
-      ;; 0 1 2 3 x 5
-      ;; 1 stays in place, 2 and 3 and 4 (p-new) shift right
-      (when (< p-new p-old)
-        (loop for j from 0 below n
-              for pj across position-table
-              ;; shift right if between p-new and p-old
-              if (and (> pj p-new)
-                      (< pj p-old))
-                do (incf (aref position-table j)))
-        ;; Same here. There were temporarily two element at p-new. Now that there's extra space
-        ;; on the right, move i to p-new + 1.
-        (incf (aref position-table i))))))
+      ;; then at the end, set p-new
+      (setf (aref position-table i) p-new))))
 
 (defun mix (numbers)
   ;; The numbers are not unique!
