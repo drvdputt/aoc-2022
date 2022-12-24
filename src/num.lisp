@@ -1,3 +1,13 @@
+(defun int-histogram (numbers)
+  (loop for n in numbers
+        with hist = (make-hash-table :test 'eq)
+	if (gethash n hist)
+          do (incf (gethash n hist))
+        else
+	  do (setf (gethash n hist) 1)
+        end
+	finally (return hist)))
+
 (defun at-max (valuelist otherlist)
   (let ((maxval 0)
 	(maxother 0))
