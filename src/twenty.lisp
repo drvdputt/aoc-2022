@@ -119,13 +119,27 @@
           do (print v)
           do (shift-element-position position-table i v)
           do (print position-table)
-          do (pprint-position-table numbers position-table))))
+          do (pprint-position-table numbers position-table))
+    position-table))
 
 (defun pprint-position-table (numbers position-table)
-  (print (loop for v in numbers
-               for p across position-table
-               with a = (make-array (length numbers) :element-type 'integer)
-               do (setf (aref a p) v)
-               finally (return a))))
-                                      
+  (print (parse-position-table numbers position-table)))
 
+(defun parse-position-table (numbers position-table)
+  (loop for v in numbers
+        for p across position-table
+        with a = (make-array (length numbers) :element-type 'integer)
+        do (setf (aref a p) v)
+        finally (return a)))
+                                      
+(defun do-puzzle (numbers)
+  (let* ((final-position-table (mix numbers))
+         (mixed-numbers (parse-position-table numbers final-position-table))
+         (index0 (position 0 mixed-numbers)))
+    (print "zero is at")
+    (print index0)
+    (print "1000 2000 and 3000 are")
+    (print (mapcar (lambda (offset)
+                     (elt mixed-numbers (mod (+ index0 offset) (length mixed-numbers))))
+                   '(1000 2000 3000)))))
+                     
