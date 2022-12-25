@@ -13,7 +13,7 @@
 
   Forward case
   ------------
- 
+
   0 1 2 3 4 5
   delta 1
   x 1 0 2 3 4 5
@@ -36,7 +36,7 @@
   0 1 2 3 4 5
   delta -1
   x 1 2 3 4 0 5
-  0 now at position (n - 1) 
+  0 now at position (n - 1)
 
   0 1 2 3 4 5
   delta -2
@@ -55,19 +55,19 @@
   "
   (let* ((n (length position-table))
          (p-old (aref position-table i))
-         ;; modulo n - 1! 
+         ;; modulo n - 1!
          (p-new (mod (+ p-old delta) (1- n))))
 
     ;; Special case: if p-new mod n-1 == 0, move to pos n-1 (equivalent because cyclical, but we
     ;; do it to have the same output as the example)
     (when (= 0 p-new) (setq p-new (1- n)))
 
-    (print (list "p-old" p-old "p-new" p-new))
+    ;; (print (list "p-old" p-old "p-new" p-new))
 
-    ;; Do the shifts, except when delta == 0 or pnew == pold 
+    ;; Do the shifts, except when delta == 0 or pnew == pold
     (unless (or (= delta 0) (= p-new p-old))
       ;; first, make space by doing the shifts
-      
+
       (if (> p-new p-old)
           ;; forward (p-new > p-old)
           ;; 0 1 2 3 4 5
@@ -84,7 +84,7 @@
                   do (decf (aref position-table j)))
           ;; backward (p-new < p-old)
           ;; 0 1 2 3 4 5
-          ;;    4        
+          ;;    4
           ;; 0 1 2 3 x 5
           ;; 1 stays in place, 2 and 3 and 4 (p-new) shift right
           ;; so < p-old and >= p-new
@@ -98,7 +98,7 @@
       ;; then at the end, set p-new
       (setf (aref position-table i) p-new))))
 
-(defun mix (numbers)
+(defun mix (numbers &key (times 1))
   ;; The numbers are not unique!
   (let ((h (int-histogram numbers)))
     (loop for k being each hash-key of h
@@ -114,12 +114,10 @@
             nn
             :element-type 'integer
             :initial-contents (loop for i from 0 below nn collect i))))
-    (loop for v in numbers
-          for i from 0
-          do (print v)
-          do (shift-element-position position-table i v)
-          do (print position-table)
-          do (pprint-position-table numbers position-table))
+    (loop repeat times
+          do (loop for v in numbers
+                   for i from 0
+                   do (shift-element-position position-table i v)))
     position-table))
 
 (defun pprint-position-table (numbers position-table)
@@ -131,15 +129,28 @@
         with a = (make-array (length numbers) :element-type 'integer)
         do (setf (aref a p) v)
         finally (return a)))
-                                      
-(defun do-puzzle (numbers)
-  (let* ((final-position-table (mix numbers))
-         (mixed-numbers (parse-position-table numbers final-position-table))
-         (index0 (position 0 mixed-numbers)))
+
+(defun grove-coordinates (mixed-numbers)
+  (let* ((index0 (position 0 mixed-numbers))
+         (k1-k2-k3 (mapcar (lambda (offset)
+                             (elt mixed-numbers (mod (+ index0 offset) (length mixed-numbers))))
+                           '(1000 2000 3000))))
     (print "zero is at")
     (print index0)
     (print "1000 2000 and 3000 are")
-    (print (mapcar (lambda (offset)
-                     (elt mixed-numbers (mod (+ index0 offset) (length mixed-numbers))))
-                   '(1000 2000 3000)))))
-                     
+    (print k1-k2-k3)
+    (print "sum is")
+    (print (apply #'+ k1-k2-k3))))
+
+(defun do-puzzle (numbers)
+  (let* ((final-position-table (mix numbers))
+         (mixed-numbers (parse-position-table numbers final-position-table)))
+    (grove-coordinates mixed-numbers)))
+
+(defun do-part2 (numbers)
+  (let* ((decryption-key 811589153)
+         (mix-times 10)
+         (alt-numbers (mapcar (lambda (n) (* decryption-key n)) numbers))
+         (final-position-table (mix alt-numbers :times 10))
+         (mixed-numbers (parse-position-table alt-numbers final-position-table)))
+    (grove-coordinates mixed-numbers)))
