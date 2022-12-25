@@ -57,7 +57,7 @@
           do (setf (monkey-value m) nil)))
 
 (defun do-part2 (lines)
-  (let* ((geuss-min 2647078177740) ;; we found two numbers. Guess min has the value too big,
+  (let* ((guess-min 2647078177740) ;; we found two numbers. Guess min has the value too big,
                                     ;; and guess max has it to small. So do bisection between
                                     ;; those.
          (guess-max (* 2 guess-min))
@@ -67,13 +67,24 @@
     ;; (print (loop for k being each hash-key of table collect k))
     ;; (print root-dep1)
     ;; (print root-dep2)
-    (loop for humn-value from (- guess 16) to (+ guess 16)
+    (loop with humn-value = (floor (+ guess-min guess-max) 2)
+          with vmax = guess-max
+          with vmin = guess-min
           do (reset-monkey-values table)
           if (progn
                (setf (monkey-value (gethash "humn" table)) humn-value)
                (let* ((v1 (process-monkeys table root-dep1))
                       (v2 (process-monkeys table root-dep2)))
                  (print (list humn-value v1 v2))
+                 (if (> v1 v2)
+                     ;; it's a downward function, so
+                     ;; if v1 too big, we need a bigger humn value. Move vmin, keep vmax, and
+                     ;; put humn in the middle
+                     (setq vmin humn-value)
+                     ;; if v1 too small, need smaller humn, so move vmax
+                     (setq vmax humn-value))
+                 ;; then move humn to the middle again
+                 (setq humn-value (floor (+ vmin vmax) 2))
                  (= v1 v2)))
             return humn-value)))
 
