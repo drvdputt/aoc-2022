@@ -223,31 +223,31 @@
 ;; 0 = plain, 1 = 90 anticlockwise, 2 upside-down, 3 270 anticlockwise
 
 (defun cube-face-relation (f)
-  (assoc f
-         '((1 . (:r (2 . 0)
-                 :d (3 . 0)
-                 :l (4 . 2)
-                 :u (6 . 1)))
-           (2 . (:r (5 . 2)
-                 :d (3 . 1)
-                 :l (1 . 0)
-                 :u (6 . 0)))
-           (3 . (:r (2 . 3)
-                 :d (5 . 0)
-                 :l (4 . 3)
-                 :u (1 . 0)))
-           (4 . (:r (5 . 0)
-                 :d (6 . 0)
-                 :l (1 . 2)
-                 :u (3 . 1)))
-           (5 . (:r (2 . 2)
-                 :d (6 . 1)
-                 :l (4 . 0)
-                 :u (3 . 0)))
-           (6 . (:r (5 . 3)
-                 :d (2 . 0)
-                 :l (1 . 3)
-                 :u (4 . 0))))))
+  (cdr (assoc f
+              '((1 . (:r (2 . 0)
+                      :d (3 . 0)
+                      :l (4 . 2)
+                      :u (6 . 1)))
+                (2 . (:r (5 . 2)
+                      :d (3 . 1)
+                      :l (1 . 0)
+                      :u (6 . 0)))
+                (3 . (:r (2 . 3)
+                      :d (5 . 0)
+                      :l (4 . 3)
+                      :u (1 . 0)))
+                (4 . (:r (5 . 0)
+                      :d (6 . 0)
+                      :l (1 . 2)
+                      :u (3 . 1)))
+                (5 . (:r (2 . 2)
+                      :d (6 . 1)
+                      :l (4 . 0)
+                      :u (3 . 0)))
+                (6 . (:r (5 . 3)
+                      :d (2 . 0)
+                      :l (1 . 3)
+                      :u (4 . 0)))))))
 
 (defun direction-legend (d)
   (cdr (assoc d '((0 . :r)
@@ -275,14 +275,17 @@
    y' = x
 
    or i-new = j
-      j-new = N - i
+      j-new = N - 1 - i
   "
   (let ((i-new i)
         (j-new j))
     (loop repeat times
           do (setq i-new j
-                   j-new (- N i)))
+                   j-new (- (1- N) i)))
     (cons i-new j-new)))
+
+(defun transform-direction-to-rotated-face (d times)
+  (mod (+ d times) 4)) 
 
 (defun step-on-cube (f i j d N)
   "Return coordinates after making one step in the given direction.
@@ -295,21 +298,23 @@
          (next-i (if horizontal i (+ i delta)))
          (next-j (if horizontal (+ j delta) j))
          (change-f (or (< next-i 0)
-                       (> next-i N)
+                       (>= next-i N)
                        (< next-j 0)
-                       (> next-j N))))
+                       (>= next-j N))))
     (if (not change-f)
         ;; we stay on the same face --> simple step
-        (list f next-i next-j)
+        (list f next-i next-j d)
         ;; we change face --> figure out which face is next and what transformation to apply
         (let* ((face-and-rot (neighboring-face-and-rotation f d))
                (next-f (car face-and-rot))
-               (rot (cdr face-and-rot)))
+               (rot (cdr face-and-rot))
+               ;; don't forget to transform the direction!
+               (next-d (transform-direction-to-rotated-face d rot)))
           ;; roll over the coordinates
           (setq next-i (mod next-i N)
                 next-j (mod next-j N))
           (let ((rot-ij (transform-point-to-rotated-face next-i next-j N rot)))
-            (list next-f (car rot-ij) (cdr rot-ij)))))))
+            (list next-f (car rot-ij) (cdr rot-ij) next-d))))))
 
 (defun cube-to-2d (f i j N)
   (let ((offset (face-offset f)))
@@ -323,28 +328,31 @@
         with f-cur = f
         with i-cur = i
         with j-cur = j
-        for fij-next = (step-on-cube f-cur i-cur j-cur direction N)
-        for f-next = (first fij-next)
-        for i-next = (second fij-next)
-        for j-next = (third fij-next)
+        with d-cur = direction
+        for fijd-next = (step-on-cube f-cur i-cur j-cur d-cur N)
+        for f-next = (first fijd-next)
+        for i-next = (second fijd-next)
+        for j-next = (third fijd-next)
+        for d-next = (fourth fijd-next)
         for ij-next-2d = (cube-to-2d f-next i-next j-next N)
-        do (print (list "moving-fij" fij-next ij-next-2d))
+        do (print (list "moving-fijd" fijd-next ij-next-2d))
           
         ;; check for obstruction on the 2d map
         if (char= (aref a (car ij-next-2d) (cdr ij-next-2d)) #\#)
-          return (list f-cur i-cur j-cur)
+          return (list f-cur i-cur j-cur d-cur)
         else
           do (setq f-cur f-next
                    i-cur i-next
-                   j-cur j-next)
-        finally (return (list f-cur i-cur j-cur))))
+                   j-cur j-next
+                   d-cur d-next)
+        finally (return (list f-cur i-cur j-cur d-cur))))
 
 (defun do-part2 ()
   (let* ((f 1)
          (i 0)
          (j 0)
-         (fij (list f i j))
          (d 0)
+         (fijd (list f i j d))
          (N 50)
          (a (parse-map lines))
          (instructions (parse-instructions lines)))
@@ -353,19 +361,21 @@
     (print (cube-to-2d f i j N))
 
     ;; do the first move
-    (print fij)
-    (setq fij (do-cube-move a (first fij) (second fij) (third fij) N d (first (getf instructions :moves))))
-    (print fij)
+    (print fijd)
+    (setq fijd (do-cube-move a (first fijd) (second fijd) (third fijd) N (fourth fijd) (first (getf instructions :moves))))
+    (print fijd)
 
-    ;; ;; then (turn, move), (turn, move), ...
-    ;; (loop for turn in (getf instructions :turns)
-    ;;       for move in (cdr (getf instructions :moves))
-    ;;       ;; apply turn (still need to convert direction when I rotate...)
-    ;;       do (setq d (do-turn d turn))
-    ;;          ;; apply move
-    ;;       do (setq ij (do-move wm (car ij) (cdr ij) d move))
-    ;;       do (print (list turn move ij)))
-    ;; (+ (* 1000 (1+ (car ij)))
-    ;;    (* 4 (1+ (cdr ij)))
-    ;;    d)))
-))
+    ;; then (turn, move), (turn, move), ...
+    (loop for turn in (getf instructions :turns)
+          for move in (cdr (getf instructions :moves))
+          do (setq fijd (do-cube-move a
+                          (first fijd) (second fijd) (third fijd) N (do-turn (fourth fijd) turn)
+                          move))
+          do (print (list turn move fijd)))
+
+    ;; convert back to 2d, and get final score
+    (let ((ij-2d (cube-to-2d (first fijd) (second fijd) (third fijd) N)))
+      (+ (* 1000 (1+ (car ij-2d)))
+         (* 4 (1+ (cdr ij-2d)))
+         d))))
+
