@@ -15,7 +15,7 @@
                    do (setf (aref a i j) c)))
     ;; (pprint-char-array a)
     a))
-        
+
 (defun parse-instructions (lines)
   "Get lists :moves and :turns
 
@@ -58,7 +58,7 @@
                    if (and (not previous-inside-p) (not space-p))
                      do (setq previous-inside-p t
                               start j)
-                   ;; if inside, and we encounter a space, we are outside again, so we can return
+                        ;; if inside, and we encounter a space, we are outside again, so we can return
                    if (and previous-inside-p space-p)
                      do (setq end j)
                      and return nil
@@ -76,7 +76,7 @@
                    if (and (not previous-inside-p) (not space-p))
                      do (setq previous-inside-p t
                               start i)
-                   ;; if inside, and we encounter a space, we are outside again, so we can return
+                        ;; if inside, and we encounter a space, we are outside again, so we can return
                    if (and previous-inside-p space-p)
                      do (setq end i)
                      and return nil
@@ -85,7 +85,7 @@
           do (setf (aref (wrapmap-col-start-v wm) j) start
                    (aref (wrapmap-col-end-v wm) j) end))
     wm))
-    
+
 
 (defun wrap-generic (x start end)
   "Force x to be within [start, end[ by wrapping."
@@ -101,7 +101,7 @@
   (let ((start (elt (wrapmap-row-start-v wm) i))
         (end (elt (wrapmap-row-end-v wm) i)))
     (wrap-generic j start end)))
-         
+
 (defun wrapmap/get-value-wrapped (wm i j direction)
   "Wrap the given the given position if necessary, and return the map value."
   (let* ((horizontal (or (= direction 0)
@@ -112,7 +112,7 @@
          (wj (if horizontal
                  (wrapmap/wrap-j wm i j)
                  j)))
-    (aref (wrapmap-char-a wm) wi wj)))                   
+    (aref (wrapmap-char-a wm) wi wj)))
 
 ;; direction is magic number 0, 1, 2, or 3 (with right = 0, and clockwise increase)
 ;; (defun do-turn (direction turn)
@@ -161,18 +161,18 @@
          (instructions (parse-instructions lines)))
 
     (print wm)
-    
+
     ;; do the first move
     (print ij)
     (setq ij (do-move wm (car ij) (cdr ij) d (first (getf instructions :moves))))
     (print ij)
-    
+
     ;; then (turn, move), (turn, move), ...
     (loop for turn in (getf instructions :turns)
           for move in (cdr (getf instructions :moves))
           ;; apply turn
           do (setq d (do-turn d turn))
-          ;; apply move         
+             ;; apply move
           do (setq ij (do-move wm (car ij) (cdr ij) d move))
           do (print (list turn move ij)))
     (+ (* 1000 (1+ (car ij)))
@@ -180,9 +180,132 @@
        d)))
 
 (defun which-face (i j N)
- "return which cube face we're in, depending on the coordinates. Only works for the big input
-  (it has a different unfolding layout than the example..."
-  (let ((ifloor (floor i N))
-        (jfloor (floor j N)))
-    (cond (and (ifloor 
-  
+  "return which cube face we're in, depending on the coordinates. Only works for the big input
+  (it has a different unfolding layout than the example...
+
+  The returned numbers correspond to my drawing on paper.
+
+  Returns -1 if off the 2d map (useful for detecting if we have to change face."
+  (let ((ii (floor i N))
+        (jj (floor j N)))
+    (cond ((and (= ii 0) (= jj 1))
+           1)
+          ((and (= ii 0) (= jj 2))
+           2)
+          ((and (= ii 1) (= jj 1))
+           3)
+          ((and (= ii 2) (= jj 0))
+           4)
+          ((and (= ii 2) (= jj 1))
+           5)
+          ((and (= ii 3) (= jj 0))
+           6)
+          (t
+           -1))))
+
+
+;; (defparameter cube-face-transform-type
+;;   ;; maps pairs of cubes to a label (function maybe?) indicating the type of coordinate
+;;   ;; transformation
+;;   (list '(1 2) 'horizontal
+;;         (cons '(1 3) 'vertical)
+;;         (cons '(
+
+;; how all 4 sides of each face relate to another face, with a certain rotation given. Rotation:
+;; 0 = plain, 1 = 90 anticlockwise, 2 upside-down, 3 270 anticlockwise
+(defun cube-face-relation (f)
+  (assoc f
+         '((1 . (:r (2 . 0)
+                 :d (3 . 0)
+                 :l (4 . 2)
+                 :u (6 . 1)))
+           (2 . (:r (5 . 2)
+                 :d (3 . 1)
+                 :l (1 . 0)
+                 :u (6 . 0)))
+           (3 . (:r (2 . 3)
+                 :d (5 . 0)
+                 :l (4 . 3)
+                 :u (1 . 0)))
+           (4 . (:r (5 . 0)
+                 :d (6 . 0)
+                 :l (1 . 2)
+                 :u (3 . 1)))
+           (5 . (:r (2 . 2)
+                 :d (6 . 1)
+                 :l (4 . 0)
+                 :u (3 . 0)))
+           (6 . (:r (5 . 3)
+                 :d (2 . 0)
+                 :l (1 . 3)
+                 :u (4 . 0))))))
+
+(defun direction-legend (d)
+  (cdr (assoc d '((0 . :r)
+                  (1 . :d)
+                  (2 . :l)
+                  (3 . :r)))))
+
+(defun neighboring-face-and-rotation (f d)
+  "f = face integer
+   d = direction in which to roll over (integer again)
+   Returns (next-face . num-rotations)"
+  (getf (cube-face-relation f) (direction-legend d)))
+
+(defun transform-point-to-rotated-face (i j N times)
+  "times = multiple of 90
+
+   Rotation matrix won't work because we want to rotate around center.
+
+   Straightforward on paper though.
+
+   Rotating the coordinate axes 90 anti-clockwise (= rotating the face of the cube while the
+   point stays the same), yields:
+
+   x' = N - y
+   y' = x
+
+   or i-new = j
+      j-new = N - i
+  "
+  (let ((i-new i)
+        (j-new j))
+    (loop repeat times
+          do (setq i-new j
+                   j-new (- N i)))
+    (cons i-new j-new)))
+
+(defun step-on-cube (f i j d N)
+  "Return coordinates after making one step in the given direction.
+
+     (works with cube coordinates (f i j), with f referring to the current face. For every face,
+     the up direction (i = 0) is the same as in the 2d map. So every time we step over the
+     border of a face, we rotate i j, and update f."
+  (let* ((horizontal (or (= d 0) (= d 2)))
+         (delta (if (< d 2) 1 -1))
+         (next-i (if horizontal i (+ i delta)))
+         (next-j (if horizontal (+ j delta) j))
+         (change-f (or (< next-i 0)
+                       (> next-i N)
+                       (< next-j 0)
+                       (> next-j N))))
+    (if (not change-f)
+        ;; we stay on the same face --> simple step
+        (cons next-i next-j)
+        ;; we change face --> figure out which face is next and what transformation to apply
+        (let* ((face-and-rot (neighboring-face-and-rotation f d))
+               (next-f (car face-and-rot))
+               (rot (cdr face-and-rot)))
+          ;; roll over the coordinates
+          (setq next-i (mod next-i N)
+                next-j (mod next-j N))
+          ;; apply rotation as appropriate
+          (let ((rot-ij (transform-point-to-rotated-face next-i next-j N rot)))
+            (list next-f (car rot-ij) (cdr rot-ij)))))))
+
+
+
+
+
+
+
