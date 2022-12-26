@@ -203,6 +203,14 @@
           (t
            -1))))
 
+(defun face-offset (f)
+  "sort of inverse function. Returns the top left corner of each face."
+  (cdr (assoc f '((1 . (0 . 1))
+                  (2 . (0 . 2))
+                  (3 . (1 . 1))
+                  (4 . (2 . 0))
+                  (5 . (2 . 1))
+                  (6 . (3 . 0))))))
 
 ;; (defparameter cube-face-transform-type
 ;;   ;; maps pairs of cubes to a label (function maybe?) indicating the type of coordinate
@@ -213,6 +221,7 @@
 
 ;; how all 4 sides of each face relate to another face, with a certain rotation given. Rotation:
 ;; 0 = plain, 1 = 90 anticlockwise, 2 upside-down, 3 270 anticlockwise
+
 (defun cube-face-relation (f)
   (assoc f
          '((1 . (:r (2 . 0)
@@ -291,7 +300,7 @@
                        (> next-j N))))
     (if (not change-f)
         ;; we stay on the same face --> simple step
-        (cons next-i next-j)
+        (list f next-i next-j)
         ;; we change face --> figure out which face is next and what transformation to apply
         (let* ((face-and-rot (neighboring-face-and-rotation f d))
                (next-f (car face-and-rot))
@@ -299,13 +308,64 @@
           ;; roll over the coordinates
           (setq next-i (mod next-i N)
                 next-j (mod next-j N))
-          ;; apply rotation as appropriate
           (let ((rot-ij (transform-point-to-rotated-face next-i next-j N rot)))
             (list next-f (car rot-ij) (cdr rot-ij)))))))
 
+(defun cube-to-2d (f i j N)
+  (let ((offset (face-offset f)))
+    (cons (+ i (* N (car offset)))
+          (+ j (* N (cdr offset))))))
 
+(defun do-cube-move (a f i j N direction distance)
+  "Step one by one, along a direction, checking for obstructions by converting to 2d coords at
+   every step"
+  (loop for counter from 0 below distance
+        with f-cur = f
+        with i-cur = i
+        with j-cur = j
+        for fij-next = (step-on-cube f-cur i-cur j-cur direction N)
+        for f-next = (first fij-next)
+        for i-next = (second fij-next)
+        for j-next = (third fij-next)
+        for ij-next-2d = (cube-to-2d f-next i-next j-next N)
+        do (print (list "moving-fij" fij-next ij-next-2d))
+          
+        ;; check for obstruction on the 2d map
+        if (char= (aref a (car ij-next-2d) (cdr ij-next-2d)) #\#)
+          return (list f-cur i-cur j-cur)
+        else
+          do (setq f-cur f-next
+                   i-cur i-next
+                   j-cur j-next)
+        finally (return (list f-cur i-cur j-cur))))
 
+(defun do-part2 ()
+  (let* ((f 1)
+         (i 0)
+         (j 0)
+         (fij (list f i j))
+         (d 0)
+         (N 50)
+         (a (parse-map lines))
+         (instructions (parse-instructions lines)))
+    ;; start at f = 1, i = 0, j = 0 (top left corner of face 1, maps to 0, 50 on the 2D map)
+    ;; check if the conversion works fine
+    (print (cube-to-2d f i j N))
 
+    ;; do the first move
+    (print fij)
+    (setq fij (do-cube-move a (first fij) (second fij) (third fij) N d (first (getf instructions :moves))))
+    (print fij)
 
-
-
+    ;; ;; then (turn, move), (turn, move), ...
+    ;; (loop for turn in (getf instructions :turns)
+    ;;       for move in (cdr (getf instructions :moves))
+    ;;       ;; apply turn (still need to convert direction when I rotate...)
+    ;;       do (setq d (do-turn d turn))
+    ;;          ;; apply move
+    ;;       do (setq ij (do-move wm (car ij) (cdr ij) d move))
+    ;;       do (print (list turn move ij)))
+    ;; (+ (* 1000 (1+ (car ij)))
+    ;;    (* 4 (1+ (cdr ij)))
+    ;;    d)))
+))
