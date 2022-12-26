@@ -56,57 +56,73 @@
         if (monkey-operation m)
           do (setf (monkey-value m) nil)))
 
-(defun do-part2 (lines)
-  (let* ((guess-min 2647078177740) ;; we found two numbers. Guess min has the value too big,
-                                    ;; and guess max has it to small. So do bisection between
-                                    ;; those.
-         (guess-max (* 2 guess-min))
+(defun do-part2 (lines guess-min guess-max &key (method 'scan) (stijgend nil))
+  (let* (;; we found two numbers. Guess min has the value too big,
+         ;; and guess max has it to small. So do bisection between
+         ;; those.
          (table (parse-monkey-table lines))
          (root-dep1 (monkey-dep1 (gethash "root" table)))
-         (root-dep2 (monkey-dep2 (gethash "root" table))))
+         (root-dep2 (monkey-dep2 (gethash "root" table)))
+         (vmin guess-min)
+         (vmax guess-max)
+         (humn-value (cond ((eq method 'scan) vmin)
+                           ((eq method 'bisect) (floor (+ guess-min guess-max) 2))))
+         (v1 nil)
+         (v2 nil))
+    (flet ((refresh-v1-v2 ()
+             ;; reset everything with new humn value
+             (reset-monkey-values table)
+             (setf (monkey-value (gethash "humn" table)) humn-value)
+             (setq v1 (process-monkeys table root-dep1)
+                   v2 (process-monkeys table root-dep2))
+             (print (list "humn v1 v2" humn-value v1 v2))))
     ;; (print (loop for k being each hash-key of table collect k))
     ;; (print root-dep1)
     ;; (print root-dep2)
-    (loop with humn-value = (floor (+ guess-min guess-max) 2)
-          with vmax = guess-max
-          with vmin = guess-min
-          do (reset-monkey-values table)
-          if (progn
-               (setf (monkey-value (gethash "humn" table)) humn-value)
-               (let* ((v1 (process-monkeys table root-dep1))
-                      (v2 (process-monkeys table root-dep2)))
-                 (print (list humn-value v1 v2))
-                 (if (> v1 v2)
-                     ;; it's a downward function, so
-                     ;; if v1 too big, we need a bigger humn value. Move vmin, keep vmax, and
-                     ;; put humn in the middle
-                     (setq vmin humn-value)
-                     ;; if v1 too small, need smaller humn, so move vmax
-                     (setq vmax humn-value))
-                 ;; then move humn to the middle again
-                 (setq humn-value (floor (+ vmin vmax) 2))
-                 (= v1 v2)))
-            return humn-value)))
+    (cond ((eq method 'bisect)
+           (loop
+             ;; move humn to middle of the bounds
+             do (setq humn-value (floor (+ vmin vmax) 2))
 
-;; Part two needs some human attention. v2 is independent of humn, and always equal to
-;; 34588563455325
+                ;; calc v1 and v2
+             do (refresh-v1-v2)
+             do (print (list "vmin humn vmax" vmin humn-value vmax))
 
-;; with humn == 0, we get 
-;; 90177205187895
-;; 34588563455325
+                ;; check return condition
+             if (or (= v1 v2) (< (abs (- vmin vmax)) 2))
+               return humn-value
 
-;; so we need to go down by
-;; 55588641732570
+             ;; adjust search bounds
+             if (or (and stijgend (< v1 v2))
+                    (and (not stijgend) (> v1 v2)))
+               ;; if stijgend and too small, or dalend and too big, need bigger number
+               do (setq vmin humn-value)
+             else
+               ;; else, need smaller number
+               do (setq vmax humn-value)))
+          
+          ((eq method 'scan)
+           (loop
+             ;; calc v1 and v2
+             do (refresh-v1-v2)
 
-;; going from 4 to 10 (+ 6)
-;; we go from
-;; 90177205187781
-;; to
-;; 90177205187655
-;; which is a difference of 126 over a distance of 6
+                ;; check return condition (actually, we want to scan everything
+                ;; if (or (= v1 v2) (< (abs (- vmin vmax)) 2))
+                ;;   return humn-value
+             if (= v1 v2)
+               do (print "^^^^^^^")
+                
+             if (> humn-value vmax)
+               return nil
+                
+             ;; increment humn by 1
+             do (incf humn-value)))))))
 
-;; (floor 55588641732570 126) is 441179696290 decrements
-;; times a distance of 6 gives 2647078177740
-;; so we explore around that number
+;; part 2 needs two parts
 
-;; let's try bisection search!
+;; first: do bisection search to find the right range
+;; (do-part2 lines 0 1000000000000000 :method 'bisect :stijgend nil)
+
+;; then, look at the output, and do a scan to find the first humn value for which we are
+;; successful. (there are 6)
+;; (do-part2 lines 3059361893915 3059361893929 :method 'scan :stijgend nil)
