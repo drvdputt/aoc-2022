@@ -253,7 +253,7 @@
   (cdr (assoc d '((0 . :r)
                   (1 . :d)
                   (2 . :l)
-                  (3 . :r)))))
+                  (3 . :u)))))
 
 (defun neighboring-face-and-rotation (f d)
   "f = face integer
