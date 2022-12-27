@@ -346,10 +346,16 @@
         if (char= (aref a (car ij-next-2d) (cdr ij-next-2d)) #\#)
           return (list f-cur i-cur j-cur d-cur)
         else
-          do (setq f-cur f-next
-                   i-cur i-next
-                   j-cur j-next
-                   d-cur d-next)
+          ;; visualize path
+          do (setf (aref a (car ij-next-2d) (cdr ij-next-2d))
+                   (cdr (assoc d-cur '((0 . #\>)
+                                       (1 . #\v)
+                                       (2 . #\<)
+                                       (3 . #\^)))))
+          and do (setq f-cur f-next
+                       i-cur i-next
+                       j-cur j-next
+                       d-cur d-next)
         finally (return (list f-cur i-cur j-cur d-cur))))
 
 (defun do-part2 ()
@@ -378,9 +384,12 @@
                           move))
           do (print (list turn move fijd)))
 
+    ;; print out the path
+    (pprint-char-array a)
+    
     ;; convert back to 2d, and get final score
     (let ((ij-2d (cube-to-2d (first fijd) (second fijd) (third fijd) N)))
       (+ (* 1000 (1+ (car ij-2d)))
          (* 4 (1+ (cdr ij-2d)))
-         d))))
+         (fourth fijd)))))
 

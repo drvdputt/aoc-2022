@@ -34,6 +34,7 @@
 	(loop for i from start downto end collect i))))
 
 (defun pprint-char-array (a)
+  (terpri)
   (loop for i from 0 below (array-dimension a 0)
         do (loop for j from 0 below (array-dimension a 1)
                  do (write-char (aref a i j))
