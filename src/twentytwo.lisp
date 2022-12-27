@@ -280,8 +280,10 @@
   (let ((i-new i)
         (j-new j))
     (loop repeat times
-          do (setq i-new j
-                   j-new (- (1- N) i)))
+          for i-temp = i-new
+          for j-temp = j-new
+          do (setq i-new j-temp
+                   j-new (- N 1 i-temp)))
     (cons i-new j-new)))
 
 (defun transform-direction-to-rotated-face (d times)
@@ -297,24 +299,27 @@
          (delta (if (< d 2) 1 -1))
          (next-i (if horizontal i (+ i delta)))
          (next-j (if horizontal (+ j delta) j))
+         (next-f f)
+         (next-d d)
          (change-f (or (< next-i 0)
                        (>= next-i N)
                        (< next-j 0)
                        (>= next-j N))))
-    (if (not change-f)
-        ;; we stay on the same face --> simple step
-        (list f next-i next-j d)
-        ;; we change face --> figure out which face is next and what transformation to apply
-        (let* ((face-and-rot (neighboring-face-and-rotation f d))
-               (next-f (car face-and-rot))
-               (rot (cdr face-and-rot))
-               ;; don't forget to transform the direction!
-               (next-d (transform-direction-to-rotated-face d rot)))
-          ;; roll over the coordinates
-          (setq next-i (mod next-i N)
-                next-j (mod next-j N))
-          (let ((rot-ij (transform-point-to-rotated-face next-i next-j N rot)))
-            (list next-f (car rot-ij) (cdr rot-ij) next-d))))))
+    (when change-f
+      ;; we change face --> figure out which face is next and what transformation to apply
+      (let* ((face-and-rot (neighboring-face-and-rotation f d)))
+        ;; change face and orientation
+        (setq next-f (car face-and-rot)
+              next-d (transform-direction-to-rotated-face d (cdr face-and-rot)))
+        ;; roll over the coordinates
+        (setq next-i (mod next-i N)
+              next-j (mod next-j N))
+        (print (list "before rot" (list next-i next-j)))
+        (let ((rot-ij (transform-point-to-rotated-face next-i next-j N (cdr face-and-rot))))
+          (setq next-i (car rot-ij)
+                next-j (cdr rot-ij)))))
+
+    (list next-f next-i next-j next-d)))
 
 (defun cube-to-2d (f i j N)
   (let ((offset (face-offset f)))
