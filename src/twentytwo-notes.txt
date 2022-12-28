@@ -1,0 +1,26 @@
+Problematic move from 1 to 4, going left
+
+("moving-fijd" (1 23 4 2) (23 . 54)) 
+("moving-fijd" (1 23 3 2) (23 . 53)) 
+("moving-fijd" (1 23 2 2) (23 . 52)) 
+("moving-fijd" (1 23 1 2) (23 . 51)) 
+("moving-fijd" (1 23 0 2) (23 . 50)) 
+("moving-fijd" (4 49 26 0) (149 . 26)) 
+("moving-fijd" (4 49 27 0) (149 . 27)) 
+("moving-fijd" (4 49 28 0) (149 . 28)) 
+
+(4 is to the left of 1, and upside down. So coordinate should jump from 23 . 0 to (N - 23) . 0
+when stepping by 1 over the edge.
+
+So step-on-cube is not correct yet.
+
+Another problem:
+
+(#\L 27 (6 2 28 0)) 
+("moving-fijd" (6 1 28 3) (151 . 28)) 
+("moving-fijd" (6 0 28 3) (150 . 28)) 
+("before rot" (49 28)) 
+("moving-fijd" (5 21 49 2) (121 . 99)) 
+(#\L 29 (6 0 28 3)) 
+
+This is moving up from face 6, but the obstruction check  seems to happen in face 5!
