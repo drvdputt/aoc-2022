@@ -210,5 +210,20 @@
         do (pprint-int-array (elf-array-a (elf-array/shrinkwrap (elf-state-xys es))))
         do (print "-------")
         do (elf-state/step es)
-        finally (pprint-int-array (elf-array-a (elf-array/shrinkwrap (elf-state-xys es))))))
+        finally (let ((a (elf-array-a (elf-array/shrinkwrap (elf-state-xys es)))))
+                  (pprint-int-array a)
+                  (print (reduce #'+ (aops:flatten a)))
+                  (print (- (reduce #'* (array-dimensions a)) (reduce #'+ (aops:flatten a)))))))
+
            
+(defun do-part2 (fn)
+  (loop for counter from 1
+        with es = (elf-state/init fn)
+        with previous = (alexandria:copy-array (elf-state-xys es))
+        for new = (alexandria:copy-array (elf-state-xys (elf-state/step es)))
+        ;; do (print (list new previous))
+        if (equalp new previous)
+          return counter
+        else
+          do (setq previous new)))
+
