@@ -39,10 +39,10 @@
                              :yoffset (elt xymin 1))))
     (loop for n from 0 below (array-dimension xys 0)
           do (incf (elf-array/get ea (aref xys n 0) (aref xys n 1))))
-    (print xymax)
-    (print xymin)
-    (print dimensions)
-    (print ea)
+    ;; (print xymax)
+    ;; (print xymin)
+    ;; (print dimensions)
+    ;; (print ea)
     ea))
 
 (defun elf-array/get (ea x y)
@@ -61,7 +61,7 @@
         nil
         ;; check occupancy
         (> (elf-array/get ea x y) 0))))
-    
+
 (defun (setf elf-array/get) (new-value ea x y)
   "here, I learn how to use a setf expander"
   (let ((x0 (- x (elf-array-xoffset ea)))
@@ -73,7 +73,6 @@
 
 (defstruct elf-state
   xys ;; current position of each elf
-  move-xys ;; proposed next position of each elf
   ;; rotates between each step (north south west east)
   (nswe 0))
 
@@ -94,11 +93,7 @@
           (setf (aref xys n 0) j
                 (aref xys n 1) i)
           (incf n)))
-      (setf (elf-state-xys es) xys)
-      (setf (elf-state-move-xys es) (make-array
-                                     (array-dimensions xys)
-                                     :element-type 'integer
-                                     :initial-element 0)))
+      (setf (elf-state-xys es) xys))
     es))
 
 (defun elf-array/nswe-free (ea x y nswe)
@@ -145,7 +140,7 @@
     ;; south
     ((= nswe 1) (1+ y))
     (t y)))
-        
+
 (defun elf-state/step (es)
   "part 1: fill in the proposed move array
      a. Set up position array
@@ -161,6 +156,7 @@
          (xys (elf-state-xys es))
          (ea (elf-array/shrinkwrap xys))
          ;; set up move count array (for move conflict checking)
+         (move-xys (alexandria:copy-array xys))
          (ea-move nil))
 
     ;; set move direction for all points
@@ -168,35 +164,34 @@
           for x = (aref xys n 0)
           for y = (aref xys n 1)
           ;; try the 4 directions (with mod rollover)
-          do (loop for i from 0 below 4
-                   for nswe = (mod (+ (elf-state-nswe es) i) 4)
-                   ;; if direction is free, set move and return
-                   if (elf-array/nswe-free ea x y nswe)
-                     do (print (list x y "can move in direction" nswe))
-                     and do (setf (aref (elf-state-move-xys es) n 0) (move-x nswe x)
-                                  (aref (elf-state-move-xys es) n 1) (move-y nswe y))
-                     and return t
-                   ;; no move -> set to current position, just in case
-                   finally
-                      (setf (aref (elf-state-move-xys es) n 0) x
-                            (aref (elf-state-move-xys es) n 1) y)))
+          for free-directions = (loop for i from 0 below 4
+                                      for nswe = (mod (+ (elf-state-nswe es) i) 4)
+                                      if (elf-array/nswe-free ea x y nswe)
+                                        collect nswe)
+          ;; If at least one is free, move into the first available direction. But if all 4 are
+          ;; free, do nothing.
+          if (and free-directions
+                  (not (= (length free-directions) 4)))
+            ;; do (print (list x y "can move in direction" nswe))
+            do (setf (aref move-xys n 0) (move-x (first free-directions) x)
+                     (aref move-xys n 1) (move-y (first free-directions) y)))
 
-    (print "move goals")
-    (print (elf-state-move-xys es))
-    
+    ;; (print "move goals")
+    ;; (print move-xys)
+
     ;; count moves to each tile
-    (setq ea-move (elf-array/shrinkwrap (elf-state-move-xys es)))
+    (setq ea-move (elf-array/shrinkwrap move-xys))
 
-    (print "positions")
-    (pprint-int-array (elf-array-a ea))
-    
-    (print "move")
-    (pprint-int-array (elf-array-a ea-move))
+    ;; (print "positions")
+    ;; (pprint-int-array (elf-array-a ea))
+
+    ;; (print "move")
+    ;; (pprint-int-array (elf-array-a ea-move))
 
     ;; check for conflicts and execute moves
     (loop for n from 0 below N
-          for x-move = (aref (elf-state-move-xys es) n 0)
-          for y-move = (aref (elf-state-move-xys es) n 1)
+          for x-move = (aref move-xys n 0)
+          for y-move = (aref move-xys n 1)
           ;; if only one elf is moving to this tile, we can do the move, otherwise do nothing
           if (= (elf-array/get ea-move x-move y-move) 1)
             do (setf (aref (elf-state-xys es) n 0) x-move
@@ -205,11 +200,15 @@
     ;; advance pointers
     (setf (elf-state-nswe es)
           (mod (1+ (elf-state-nswe es)) 4))
-    
     es))
-            
 
-          
-          
-          
-        
+
+
+(defun do-puzzle (fn num-steps)
+  (loop repeat num-steps
+        with es = (elf-state/init fn)
+        do (pprint-int-array (elf-array-a (elf-array/shrinkwrap (elf-state-xys es))))
+        do (print "-------")
+        do (elf-state/step es)
+        finally (pprint-int-array (elf-array-a (elf-array/shrinkwrap (elf-state-xys es))))))
+           
