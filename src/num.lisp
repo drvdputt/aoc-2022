@@ -39,3 +39,10 @@
         do (loop for j from 0 below (array-dimension a 1)
                  do (write-char (aref a i j))
                     finally (terpri))))
+
+(defun pprint-int-array (a)
+  (terpri)
+  (loop for i from 0 below (array-dimension a 0)
+        do (loop for j from 0 below (array-dimension a 1)
+                 do (write-string (write-to-string (aref a i j)))
+                    finally (terpri))))

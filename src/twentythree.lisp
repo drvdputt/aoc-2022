@@ -16,12 +16,13 @@
 (defstruct elf-array
   a
   yoffset
-  xoffset)
-
-
+  xoffset
+  )
 
 (defun elf-array/shrinkwrap (xys)
-  "Make an elf-array instance that just fits around the list of elves"
+  "Make an elf-array instance that just fits around the list of elves
+
+   Will be filled with 0 and 1. Higher integers when xys contains duplicates."
   (let* ((xymax ;; get maximum of each column
            (aops:each-index j
              (aops:reduce-index #'max i
@@ -30,19 +31,42 @@
            (aops:each-index j
              (aops:reduce-index #'min i
                (aref xys i j))))
-         (dimensions (map 'list (lambda (a b) (1+ (- a b))) xymax xymin))
-         (ea (make-elf-array :a (make-array dimensions :element-type 'character :initial-element #\.)
+         ;; first y then x for array dimensions
+         (dimensions (list (1+ (- (aref xymax 1) (aref xymin 1)))
+                           (1+ (- (aref xymax 0) (aref xymin 0)))))
+         (ea (make-elf-array :a (make-array dimensions :element-type 'integer :initial-element 0)
                              :xoffset (elt xymin 0)
                              :yoffset (elt xymin 1))))
-    (loop for n from 0 below (array-dimension xys 1)
-          do (elf-array/set ea (aref xys n 0) (aref xys n 1) #\#))
-    (pprint-char-array (elf-array-a ea))
+    (loop for n from 0 below (array-dimension xys 0)
+          do (incf (elf-array/get ea (aref xys n 0) (aref xys n 1))))
+    (print xymax)
+    (print xymin)
+    (print dimensions)
+    (print ea)
     ea))
 
-(defun elf-array/set (ea x y v)
+(defun elf-array/get (ea x y)
   (let ((x0 (- x (elf-array-xoffset ea)))
         (y0 (- y (elf-array-yoffset ea))))
-    (setf (aref (elf-array-a ea) y0 x0) v)))
+    (aref (elf-array-a ea) y0 x0)))
+
+(defun elf-array/occupied (ea x y)
+  "Returns nil if free or out of bounds"
+  (let ((a (elf-array-a ea))
+        (x0 (elf-array-xoffset ea))
+        (y0 (elf-array-yoffset ea)))
+    (if (or (< x x0) (>= x (+ x0 (array-dimension a 1)))
+            (< y y0) (>= y (+ y0 (array-dimension a 0))))
+        ;; out of bounds
+        nil
+        ;; check occupancy
+        (> (elf-array/get ea x y) 0))))
+    
+(defun (setf elf-array/get) (new-value ea x y)
+  "here, I learn how to use a setf expander"
+  (let ((x0 (- x (elf-array-xoffset ea)))
+        (y0 (- y (elf-array-yoffset ea))))
+    (setf (aref (elf-array-a ea) y0 x0) new-value)))
 
 (defparameter directions
   '('north 'south 'west 'east))
@@ -67,7 +91,6 @@
       (aops:each-index (i j)
         (when (char= (aref char-a i j) #\#)
           ;; x = j, y = i
-          (print (cons i j))
           (setf (aref xys n 0) j
                 (aref xys n 1) i)
           (incf n)))
@@ -77,6 +100,116 @@
                                      :element-type 'integer
                                      :initial-element 0)))
     es))
-        
 
-  
+(defun elf-array/nswe-free (ea x y nswe)
+  "Return t if direction is free, based on the check described in the instructions"
+  (cond
+    ;; north: check N, NE, NW
+    ((= nswe 0)
+     (loop for xi from (1- x) to (1+ x)
+           if (elf-array/occupied ea xi (1- y))
+             return nil
+           finally (return t)))
+    ;; south
+    ((= nswe 1)
+     (loop for xi from (1- x) to (1+ x)
+           if (elf-array/occupied ea xi (1+ y))
+             return nil
+           finally (return t)))
+    ;; west
+    ((= nswe 2)
+     (loop for yi from (1- y) to (1+ y)
+           if (elf-array/occupied ea (1- x) yi)
+             return nil
+           finally (return t)))
+    ;; east
+    ((= nswe 3)
+     (loop for yi from (1- y) to (1+ y)
+           if (elf-array/occupied ea (1+ x) yi)
+             return nil
+           finally (return t)))))
+
+(defun move-x (nswe x)
+  (cond
+    ;; west
+    ((= nswe 2) (1- x))
+    ;; east
+    ((= nswe 3) (1+ x))
+    ;; north and south
+    (t x)))
+
+(defun move-y (nswe y)
+  (cond
+    ;; north
+    ((= nswe 0) (1- y))
+    ;; south
+    ((= nswe 1) (1+ y))
+    (t y)))
+        
+(defun elf-state/step (es)
+  "part 1: fill in the proposed move array
+     a. Set up position array
+     b. Go over all elves, and check the position array for neighbors. This determines their move.
+
+   part 2: check if proposed moves are possible
+     a. count number of moves to each tile (store in array)
+     b. go over all elves, and check count on their destination. Adjust xy[n] if elf n is free to move.
+
+   part 3: advance pointers"
+  (let* ((N (array-dimension (elf-state-xys es) 0))
+         ;; set up position array (for neighbor checking)
+         (xys (elf-state-xys es))
+         (ea (elf-array/shrinkwrap xys))
+         ;; set up move count array (for move conflict checking)
+         (ea-move nil))
+
+    ;; set move direction for all points
+    (loop for n from 0 below N
+          for x = (aref xys n 0)
+          for y = (aref xys n 1)
+          ;; try the 4 directions (with mod rollover)
+          do (loop for i from 0 below 4
+                   for nswe = (mod (+ (elf-state-nswe es) i) 4)
+                   ;; if direction is free, set move and return
+                   if (elf-array/nswe-free ea x y nswe)
+                     do (print (list x y "can move in direction" nswe))
+                     and do (setf (aref (elf-state-move-xys es) n 0) (move-x nswe x)
+                                  (aref (elf-state-move-xys es) n 1) (move-y nswe y))
+                     and return t
+                   ;; no move -> set to current position, just in case
+                   finally
+                      (setf (aref (elf-state-move-xys es) n 0) x
+                            (aref (elf-state-move-xys es) n 1) y)))
+
+    (print "move goals")
+    (print (elf-state-move-xys es))
+    
+    ;; count moves to each tile
+    (setq ea-move (elf-array/shrinkwrap (elf-state-move-xys es)))
+
+    (print "positions")
+    (pprint-int-array (elf-array-a ea))
+    
+    (print "move")
+    (pprint-int-array (elf-array-a ea-move))
+
+    ;; check for conflicts and execute moves
+    (loop for n from 0 below N
+          for x-move = (aref (elf-state-move-xys es) n 0)
+          for y-move = (aref (elf-state-move-xys es) n 1)
+          ;; if only one elf is moving to this tile, we can do the move, otherwise do nothing
+          if (= (elf-array/get ea-move x-move y-move) 1)
+            do (setf (aref (elf-state-xys es) n 0) x-move
+                     (aref (elf-state-xys es) n 1) y-move))
+
+    ;; advance pointers
+    (setf (elf-state-nswe es)
+          (mod (1+ (elf-state-nswe es)) 4))
+    
+    es))
+            
+
+          
+          
+          
+        
