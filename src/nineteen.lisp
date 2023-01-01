@@ -1,6 +1,7 @@
 (declaim (optimize (speed 3) (debug 0) (safety 0)))
 
 ;; try to write a generic state search thing
+(load "dfss.lisp")
 
 (defun dfss/recurse (cur-state
                      end-p
